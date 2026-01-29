@@ -72,21 +72,30 @@ public:
 	}
 
 	static Tokens from_pattern(std::string const& source) {
-		static const std::regex re_separators {
-			"(?:\\s*)" // any spaces (non-matching subgroup)
-			"("
-			"[\\[\\]\\(\\)\\|]" // one character of brackets or parens or pipe character
-			"|"
-			"\\.\\.\\."  // elipsis
-			")" };
+		// Use function-local statics with lazy initialization to avoid static init issues on Windows
+		static const auto get_re_separators = []() {
+			return std::regex{
+				"(?:\\s*)" // any spaces (non-matching subgroup)
+				"("
+				"[\\[\\]\\(\\)\\|]" // one character of brackets or parens or pipe character
+				"|"
+				"\\.\\.\\."  // elipsis
+				")"
+			};
+		};
+		static const std::regex re_separators = get_re_separators();
 
-		static const std::regex re_strings {
-			"(?:\\s*)" // any spaces (non-matching subgroup)
-			"("
-			"\\S*<.*?>"  // strings, but make sure to keep "< >" strings together
-			"|"
-			"[^<>\\s]+"     // string without <>
-			")" };
+		static const auto get_re_strings = []() {
+			return std::regex{
+				"(?:\\s*)" // any spaces (non-matching subgroup)
+				"("
+				"\\S*<.*?>"  // strings, but make sure to keep "< >" strings together
+				"|"
+				"[^<>\\s]+"     // string without <>
+				")"
+			};
+		};
+		static const std::regex re_strings = get_re_strings();
 
 		// We do two stages of regex matching. The '[]()' and '...' are strong delimeters
 		// and need to be split out anywhere they occur (even at the end of a token). We
@@ -168,7 +177,8 @@ static std::vector<std::string> parse_section(std::string const& name, std::stri
 	// a newline to anchor our matching, we have to avoid matching the final newline of each grouping.
 	// Therefore, our regex is adjusted from the docopt Python one to use ?= to match the newlines before
 	// the following lines, rather than after.
-	std::regex const re_section_pattern {
+	// Use constructor to avoid static init issues on Windows
+	std::regex re_section_pattern {
 		"(?:^|\\n)"  // anchored at a linebreak (or start of string)
 		"("
 		   "[^\\n]*" + name + "[^\\n]*(?=\\n?)" // a line that contains the name
@@ -527,10 +537,14 @@ static PatternList parse_argv(Tokens tokens, std::vector<Option>& options, bool 
 static std::vector<Option> parse_defaults(std::string const& doc) {
 	// This pattern is a delimiter by which we split the options.
 	// The delimiter is a new line followed by a whitespace(s) followed by one or two hyphens.
-	static std::regex const re_delimiter{
-		"(?:^|\\n)[ \\t]*"  // a new line with leading whitespace
-		"(?=-{1,2})"        // [split happens here] (positive lookahead) ... and followed by one or two hyphes
+	// Use function-local static with lazy initialization to avoid static init issues on Windows
+	static const auto get_re_delimiter = []() {
+		return std::regex{
+			"(?:^|\\n)[ \\t]*"  // a new line with leading whitespace
+			"(?=-{1,2})"        // [split happens here] (positive lookahead) ... and followed by one or two hyphes
+		};
 	};
+	static const std::regex re_delimiter = get_re_delimiter();
 
 	std::vector<Option> defaults;
 	for (auto s : parse_section("options:", doc)) {
